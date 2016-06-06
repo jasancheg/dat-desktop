@@ -7,13 +7,13 @@ const {ipcRenderer: ipc} = require('electron');
 const drop = require('drag-drop');
 const fileReader = require('filereader-stream');
 const fs = require('fs');
-const {basename} = require('path');
+const {basename, join} = require('path');
 const yo = require('yo-yo');
 const bytewise = require('bytewise');
 const liveStream = require('level-live-stream');
 const createArchive = require('./lib/create-archive');
 const minimist = require('minimist');
-const hyperdriveUI = require('hyperdrive-ui');
+const yofs = require('yo-fs');
 const debounce = require('debounce');
 
 const argv = minimist(remoteProcess.argv.slice(2));
@@ -53,14 +53,14 @@ const selectArchive = key => ev => {
   if (listStream) listStream.destroy();
   listStream = selected.list({ live: true })
   .on('data', file => {
+    file.name = join(root, selected.key.toString('hex'), file.name);
     files.push(file);
     refresh();
   });
   refresh();
 };
 
-const render = (archives, selected, files, add, select) => {
-  const el = yo`
+const render = (archives, selected, files, add, select) => yo`
   <div>
     <h2>Archives</h2>
     <ul>
@@ -80,16 +80,14 @@ const render = (archives, selected, files, add, select) => {
       <input type="submit" value="Add archive">
     </form>
     <h1>${selected.key.toString('hex')}</h1>
+    ${yofs(`${root}/${selected.key.toString('hex')}`, files, () => {})}
   </div>`;
-  el.appendChild(hyperdriveUI(selected, () => {}));
-  return el;
-};
 
-const refresh = debounce(() => {
+const refresh = () => {
   const fresh = render(archives, selected, files, addArchive, selectArchive);
   if (el) el = yo.update(el, fresh);
   else el = fresh;
-}, 16, true);
+};
 
 liveStream(db, {
   gt: ['archive', null],
