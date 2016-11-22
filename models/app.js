@@ -7,6 +7,7 @@ const html = require('choo/html')
 const assert = require('assert')
 const fs = require('fs')
 
+const multidat = require('../lib/multidat')
 const liveStream = require('../lib/live-stream')
 const Model = require('../lib/create-model')
 
@@ -18,6 +19,7 @@ function createModel (opts) {
 
   const model = Model('app')
   const archives = {}
+  const dats = multidat(opts.db)
 
   // we're setting the updateIndex to force refreshes because the underlying
   // data structure is mutable
@@ -60,11 +62,13 @@ function createModel (opts) {
           // TODO https://github.com/joehand/dat-js/issues/18
           dat.db.close(err => {
             if (err) throw err
-
-            opts.db.put(['archive', dat.archive.key], {
+            var params = {
+              key: dat.archive.key,
               path: target,
-              key: encoding.encode(dat.archive.key),
               owner: true
+            }
+            dats.create(params, err => {
+              if (err) throw err
             })
           })
         })
@@ -73,7 +77,7 @@ function createModel (opts) {
   })
   model.effect('delete', (state, data, send, done) => {
     const dat = data
-    opts.db.del(['archive', dat.key], err => {
+    dats.delete(dat.key, err => {
       if (err) throw err
     })
   })
@@ -99,11 +103,7 @@ function createModel (opts) {
     const key = encoding.decode(link)
     const path = `${opts.rootDir}/${encoding.encode(key)}`
     fs.mkdir(path, () => {
-      opts.db.put(['archive', key], {
-        key: link,
-        path: path
-      })
-      done()
+      dats.create({key: key, path, onwer: false}, done)
     })
   })
 
