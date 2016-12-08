@@ -1,3 +1,4 @@
+const clipboard = require('electron').clipboard
 const widget = require('cache-element/widget')
 const Modal = require('../lib/modal-element')
 const html = require('choo/html')
@@ -121,15 +122,17 @@ const prefix = css`
 module.exports = createWidget
 
 function createWidget () {
+  let isCopied = false
   let link = null
 
   let modal = Modal(html`<div></div>`, () => {
+    isCopied = false
     link = null
   })
 
   return widget({
     onload: function () {
-      if (link) modal.show(createHtml(link))
+      if (link) render()
     },
     onunload: function () {
       link = null
@@ -138,22 +141,24 @@ function createWidget () {
     onupdate: function (el, newLink) {
       if (!link && newLink) {
         // fresh link
-        link = newLink
-        modal.show(createHtml(link))
+        link = fmtLink(newLink)
+        render()
       } else if (!newLink) {
         // link was cleared
+        isCopied = false
         link = null
         modal.hide()
       } else if (newLink && (link !== newLink)) {
         // ohey, we moved to a different link
-        link = newLink
-        modal.show(createHtml(link))
+        isCopied = false
+        link = fmtLink(newLink)
+        render()
       }
     },
     render: function (newLink) {
-      link = newLink
       if (link) {
-        modal.show(createHtml(link))
+        link = fmtLink(newLink)
+        render()
       } else {
         modal.hide()
       }
@@ -162,12 +167,26 @@ function createWidget () {
     }
   })
 
-  function createHtml (link) {
+  function fmtLink (link) {
+    return 'dat://' + link
+  }
+
+  function render () {
+    modal.show(createHtml(link, isCopied, () => {
+      isCopied = true
+      clipboard.writeText(link)
+      render()
+    }))
+  }
+
+  function createHtml (link, isCopied, copyToClipboard) {
+    const confirmClass = (isCopied) ? 'show-confirmation' : ''
+
     return html`
       <section class="${prefix} flex flex-column justify-center pa3 ph4 bg-white">
         <h3 class="mt0">Copy Dat Link</h3>
         <label for="dat-link" class="dat-input">
-          <p class="f7 mt0 mb0 tr absolute color-info confirmation">
+          <p class="f7 mt0 mb0 tr absolute color-info confirmation ${confirmClass}">
             <svg class="dat-input-check-svg">
               <use xlink:href="#daticon-check" />
             </svg>
@@ -177,7 +196,7 @@ function createWidget () {
           <svg class="dat-input-svg">
             <use xlink:href="#daticon-link" />
           </svg>
-          <button class="dat-input-button">
+          <button class="dat-input-button" onclick=${copyToClipboard}>
             <svg class="dat-input-button-svg">
               <use xlink:href="#daticon-clipboard" />
             </svg>
